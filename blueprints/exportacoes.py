@@ -246,6 +246,7 @@ def exportar_positividade():
         dados = positividade_core.listar(
             bh.db_target(), request.args, pagina=1, por_pagina=100000
         )
+        focos = dados["modo"] == "focos"
         dados["registros"] = _redigir_agentes(dados.get("registros", []))
         cabecalho = [
             "Data", "Origem", "Tipo", "Localidade", "Quarteirao",
@@ -254,6 +255,9 @@ def exportar_positividade():
             "Ae. larvas", "Ae. pupas", "Ae. exuvias", "Ae. adulto",
             "Detalhes laboratoriais disponiveis",
         ]
+        if focos:
+            cabecalho[9:11] = ["Tubos positivos", "Depósitos"]
+            cabecalho.append("Amostras positivas")
         linhas = []
         for item in dados["registros"]:
             linhas.append({
@@ -276,7 +280,9 @@ def exportar_positividade():
                 "aegypt_adulto": item.get("aegypt_adulto"),
                 "detalhes": "Não" if item.get("legado_sem_detalhe") else "Sim",
             })
-        return _gerar_xlsx(cabecalho, linhas, "positividade")
+            if focos:
+                linhas[-1]["amostras_positivas"] = item["amostras_positivas"]
+        return _gerar_xlsx(cabecalho, linhas, "focos_positivos" if focos else "amostras_positivas")
     except Exception:
         logging.exception("Erro em exportar_positividade")
         return jsonify({"erro": "Erro interno. Verifique endemias.log"}), 500

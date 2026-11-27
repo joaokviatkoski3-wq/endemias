@@ -4,6 +4,13 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.35.0": {
+        "titulo": "Focos positivos por visita ao imóvel",
+        "mudancas": [
+            "Alterne entre focos por imóvel e amostras positivas na página Positividade de Coletas.",
+            "Consulte os tubos do foco e exporte o mesmo recorte mostrado na tela.",
+        ],
+    },
     "2.34.1": {
         "titulo": "Conferência de nomes de ruas nas coletas",
         "mudancas": [

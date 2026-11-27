@@ -1,6 +1,7 @@
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from app_core import positividade
@@ -76,6 +77,7 @@ class PositividadeTests(unittest.TestCase):
             "total": 2,
             "historico": 1,
             "laboratorio": 1,
+            "amostras_positivas": 1,
             "aegypti_quantificado": 3,
         })
         historico = next(item for item in dados["registros"] if item["origem"] == "historico")
@@ -84,6 +86,49 @@ class PositividadeTests(unittest.TestCase):
         self.assertIsNone(historico["aegypt_larvas"])
         self.assertEqual(laboratorio["num_tubo"], "18")
         self.assertEqual(laboratorio["aegypti_total"], 3)
+        self.assertIsNone(historico["amostras_positivas"])
+
+    def _adicionar_amostras(self):
+        with closing(sqlite3.connect(self.db_path)) as conn, conn:
+            conn.executescript("""
+                INSERT INTO coletas VALUES ('c-lab-2', 'v-lab', '20', 'Vaso');
+                INSERT INTO coletas VALUES ('c-lab-3', 'v-lab', '21', 'Calha');
+                INSERT INTO coletas VALUES ('c-lab-4', 'v-lab', '22', 'Vaso');
+                INSERT INTO resultados_laboratorio VALUES (3, 'c-lab-2', 4, 0, 0, 0);
+                INSERT INTO resultados_laboratorio VALUES (4, 'c-lab-3', NULL, 0, 1, 0);
+                INSERT INTO resultados_laboratorio VALUES (5, 'c-lab-4', 0, 0, 0, 0);
+                INSERT INTO visitas VALUES ('v-retorno', 'PE', '2026-02-17', 1, 'Sede', '2',
+                                             'Rua Atual', '10', 'Maria', 'Ponto estratégico');
+                INSERT INTO coletas VALUES ('c-retorno', 'v-retorno', '23', 'Pneu');
+                INSERT INTO resultados_laboratorio VALUES (6, 'c-retorno', 1, 0, 0, 0);
+            """)
+
+    def test_focos_agrega_por_visita_antes_da_paginacao_e_tota_localidade(self):
+        self._adicionar_amostras()
+        filtros = {"d_ini": "2026-02-01", "d_fim": "2026-02-28", "modo": "focos"}
+        dados = positividade.listar(self.db_path, filtros, pagina=2, por_pagina=1)
+        self.assertEqual((dados["total"], dados["total_paginas"], dados["pagina"]), (2, 2, 2))
+        self.assertEqual(dados["totais"]["amostras_positivas"], 4)
+        self.assertEqual(dados["totais"]["aegypti_quantificado"], 9)
+        self.assertEqual(dados["por_localidade"][0]["total"], 2)
+        foco = dados["registros"][0]
+        self.assertEqual((foco["id_visita"], foco["amostras_positivas"], foco["num_tubo"]), ("v-lab", 3, "18, 20, 21"))
+        self.assertEqual((foco["aegypt_larvas"], foco["aegypt_pupas"], foco["aegypt_exuvias"]), (6, 1, 1))
+
+    def test_busca_por_tubo_positivo_retorna_o_foco_completo_ou_a_amostra(self):
+        self._adicionar_amostras()
+        filtros = {"d_ini": "2025-01-01", "d_fim": "2026-02-28"}
+        foco = positividade.listar(self.db_path, {**filtros, "busca": "21"})
+        self.assertEqual(foco["total"], 1)
+        self.assertEqual(foco["registros"][0]["amostras_positivas"], 3)
+        amostra = positividade.listar(self.db_path, {**filtros, "busca": "21", "modo": "amostras"})
+        self.assertEqual(amostra["total"], 1)
+        self.assertEqual(amostra["registros"][0]["num_tubo"], "21")
+        negativo = positividade.listar(self.db_path, {**filtros, "busca": "22"})
+        self.assertEqual(negativo["total"], 0)
+        todas = positividade.listar(self.db_path, {**filtros, "modo": "amostras", "fonte": "historico"})
+        self.assertEqual(todas["total"], 4)
+        self.assertEqual(todas["totais"]["historico"], 0)
 
     def test_filtros_respeitam_localidade_agente_e_fonte(self):
         dados = positividade.listar(

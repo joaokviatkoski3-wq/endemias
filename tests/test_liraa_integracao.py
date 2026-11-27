@@ -9,7 +9,7 @@ from unittest.mock import patch
 from criar_banco import SQL
 from app_core import db, visitas, laboratorio, dashboard, liraa_kobo, liraa_laboratorio
 from app_core import visitas_integradas as integradas
-from app_core import relatorio_visitas_completo, boletim_mensal, producao_operacional
+from app_core import relatorio_visitas_completo, boletim_mensal, producao_operacional, positividade
 from tests import test_liraa_operacao as fixtures
 from app_core import laboratorio_lancamentos, kobo_api, liraa_operacional
 from blueprints.auth import bp as auth_bp
@@ -86,6 +86,12 @@ class IntegracaoTests(unittest.TestCase):
         self.assertEqual(dados["visitas"][0]["visita"]["tipo"], "LIRAA")
         secoes = {r["titulo"]:r["registros"] for r in dados["visitas"][0]["secoes"]}
         self.assertEqual(secoes["Resultados laboratoriais"][0]["aegypt_larvas"], 2)
+        for modo in ("focos", "amostras"):
+            positivos = positividade.listar(self.target, {**self.args, "modo": modo})
+            self.assertEqual(positivos["total"], 1)
+            registro = positivos["registros"][0]
+            self.assertEqual((registro["tipo"], registro["amostras_positivas"], registro["aegypti_total"]),
+                             ("LIRAA", 1, 2))
 
     def test_sql_nao_altera_mutacoes_ou_literais(self):
         self.importar()

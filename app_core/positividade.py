@@ -11,16 +11,15 @@ from app_core import db as db_core
 from app_core import visitas_integradas as integradas
 from app_core import normalizadores
 from app_core import utils as utils_core
+from app_core.focos_positivos import AEGYPT_FIELDS
 
 
-AEGYPT_TOTAL_SQL = " + ".join(
-    f"COALESCE(rl.aegypt_{forma},0)"
-    for forma in ("larvas", "pupas", "exuvias", "adulto")
-)
+def _aegypti_total(alias):
+    return " + ".join(f"COALESCE({alias}.{campo},0)" for campo in AEGYPT_FIELDS)
 
 
 def listar(target, args, pagina=1, por_pagina=50):
-    """Lista positivos de Aedes aegypti, atuais e pre-sistema."""
+    """Lista positivos de Aedes aegypti por visita ou por amostra."""
     consultas = _consultas(args)
     backend = getattr(target, "backend", None) or (
         "sqlite" if db_core.is_sqlite(target) else "postgresql"
@@ -46,6 +45,7 @@ def listar(target, args, pagina=1, por_pagina=50):
             f"""SELECT COUNT(*) AS total,
                        COALESCE(SUM(CASE WHEN origem='historico' THEN 1 ELSE 0 END),0) AS historico,
                        COALESCE(SUM(CASE WHEN origem='laboratorio' THEN 1 ELSE 0 END),0) AS laboratorio,
+                       COALESCE(SUM(amostras_positivas),0) AS amostras_positivas,
                        COALESCE(SUM(aegypti_total),0) AS aegypti_quantificado
                   FROM ({union_sql}) positivos""",
             params,
@@ -64,6 +64,7 @@ def listar(target, args, pagina=1, por_pagina=50):
             conn.close()
 
     return {
+        "modo": consultas["modo"],
         "total": total,
         "pagina": pagina,
         "total_paginas": total_paginas,
@@ -107,6 +108,7 @@ def opcoes(target):
 
 
 def _consultas(args):
+    modo = "amostras" if args.get("modo") == "amostras" else "focos"
     fonte = str(args.get("fonte") or "todos").strip().lower()
     if fonte not in {"todos", "historico", "laboratorio"}:
         fonte = "todos"
@@ -117,7 +119,8 @@ def _consultas(args):
         "localidades": _values(args, "localidade"),
         "agentes": _values(args, "agente"),
         "busca": str(args.get("busca") or "").strip(),
-        "fonte": fonte,
+        "fonte": "laboratorio" if modo == "amostras" else fonte,
+        "modo": modo,
     }
 
 
@@ -125,6 +128,8 @@ def _union_sql(consultas, backend):
     partes, params = [], []
     if consultas["fonte"] in {"todos", "laboratorio"}:
         sql, valores = _laboratorio_sql(consultas, backend)
+        if consultas["modo"] == "focos":
+            sql = _agrupar_focos_laboratoriais(sql, backend)
         partes.append(sql)
         params.extend(valores)
     if consultas["fonte"] in {"todos", "historico"}:
@@ -135,7 +140,8 @@ def _union_sql(consultas, backend):
 
 
 def _laboratorio_sql(consultas, backend):
-    clauses = ["v.data BETWEEN ? AND ?", f"({AEGYPT_TOTAL_SQL}) > 0"]
+    total_aegypti = _aegypti_total("rl")
+    clauses = ["v.data BETWEEN ? AND ?", f"({total_aegypti}) > 0"]
     params = [consultas["d_ini"], consultas["d_fim"]]
     if consultas["tipos"]:
         clauses.append(f"v.tipo IN ({_placeholders(consultas['tipos'])})")
@@ -157,7 +163,16 @@ def _laboratorio_sql(consultas, backend):
         )
         params.extend(consultas["agentes"])
     if consultas["busca"]:
-        clauses.append(_busca_sql("v", "c", "v.morador"))
+        if consultas["modo"] == "focos":
+            # Um tubo positivo encontrado seleciona o foco completo da visita.
+            clauses.append(f"""EXISTS (
+                SELECT 1 FROM coletas cb
+                  JOIN resultados_laboratorio rb ON rb.id_coleta=cb.id_coleta
+                 WHERE cb.id_visita=v.id_visita AND ({_aegypti_total('rb')})>0
+                   AND {_busca_sql('v', 'cb', 'v.morador')}
+            )""")
+        else:
+            clauses.append(_busca_sql("v", "c", "v.morador"))
         params.extend(_busca_params(consultas["busca"]))
     agentes = _agentes_sql("v.id_visita", backend)
     return f"""
@@ -170,15 +185,39 @@ def _laboratorio_sql(consultas, backend):
                v.morador AS morador, v.tipo AS tipo, v.tipo_imovel,
                c.num_tubo, c.tipo_deposito AS depositos,
                ({agentes}) AS agentes,
-               {AEGYPT_TOTAL_SQL} AS aegypti_total,
+               {total_aegypti} AS aegypti_total,
                rl.aegypt_larvas, rl.aegypt_pupas, rl.aegypt_exuvias, rl.aegypt_adulto,
-               0 AS legado_sem_detalhe
+               0 AS legado_sem_detalhe, 1 AS amostras_positivas
           FROM resultados_laboratorio rl
           JOIN coletas c ON c.id_coleta=rl.id_coleta
           JOIN visitas v ON v.id_visita=c.id_visita
           LEFT JOIN localidades l ON l.id_localidade=v.id_localidade
          WHERE {' AND '.join(clauses)}
     """, params
+
+
+def _agrupar_focos_laboratoriais(sql, backend):
+    if backend == "postgresql":
+        agregador = "string_agg({campo}, ', ' ORDER BY num_tubo, id_coleta)"
+        linhas = sql
+    else:
+        agregador = "GROUP_CONCAT({campo}, ', ')"
+        linhas = f"SELECT * FROM ({sql}) base ORDER BY id_visita, num_tubo, id_coleta"
+    tubos = agregador.format(campo="NULLIF(TRIM(num_tubo),'')")
+    depositos = agregador.format(campo="NULLIF(TRIM(depositos),'')")
+    formas = ", ".join(f"SUM(COALESCE({campo},0)) AS {campo}" for campo in AEGYPT_FIELDS)
+    return f"""
+        SELECT 'laboratorio' AS origem, 'Leitura laboratorial' AS origem_rotulo,
+               id_visita AS id_registro, id_visita, NULL AS id_coleta, NULL AS id_resultado,
+               MAX(data) AS data, MAX(localidade) AS localidade, MAX(quarteirao) AS quarteirao,
+               MAX(logradouro) AS logradouro, MAX(numero) AS numero, NULL AS complemento,
+               MAX(morador) AS morador, MAX(tipo) AS tipo, MAX(tipo_imovel) AS tipo_imovel,
+               {tubos} AS num_tubo, {depositos} AS depositos, MAX(agentes) AS agentes,
+               SUM(aegypti_total) AS aegypti_total, {formas},
+               0 AS legado_sem_detalhe, COUNT(DISTINCT id_coleta) AS amostras_positivas
+          FROM ({linhas}) amostras
+         GROUP BY id_visita
+    """
 
 
 def _historico_sql(consultas):
@@ -215,7 +254,7 @@ def _historico_sql(consultas):
                0 AS aegypti_total,
                NULL AS aegypt_larvas, NULL AS aegypt_pupas,
                NULL AS aegypt_exuvias, NULL AS aegypt_adulto,
-               1 AS legado_sem_detalhe
+               1 AS legado_sem_detalhe, NULL AS amostras_positivas
           FROM focos_positivos f
           LEFT JOIN localidades l ON l.id_localidade=f.id_localidade
          WHERE {' AND '.join(clauses)}
