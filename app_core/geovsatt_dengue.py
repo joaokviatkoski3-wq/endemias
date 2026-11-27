@@ -154,7 +154,8 @@ def ler_registros(abas):
             notificacao = _notificacao(raw_id)
             endereco = campo("endereco")
             data = _data(campo("data notificacao"))
-            coords = ponto(campo("latitude"), campo("longitude"))
+            # A latitude copiada de um par pode vir com a vírgula separadora.
+            coords = ponto(campo("latitude").removesuffix(","), campo("longitude").removesuffix(","))
             preliminar = notificacao is None or data is None or data[:4] != ano
             chave = f"{ano}:{notificacao}" if notificacao else (
                 f"{ano}:sem-numero:{sha256(repr((nome, endereco, data)).encode()).hexdigest()[:20]}")

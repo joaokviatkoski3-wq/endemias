@@ -447,6 +447,9 @@ verificações do instalador.
   a partir de 2026 para notificações operacionais com localização validada.
   As coordenadas AA e AB são conferidas com o limite do município. O RG
   complementa a localização com o quarteirão quando há correspondência.
+  A partir da 2.33.1, a leitura das coordenadas aceita a vírgula final que
+  pode acompanhar um valor copiado. A validação municipal e a conferência
+  de números de notificação com dados conflitantes continuam na importação.
 - Em **Gerenciar camadas → Coletas de tubo**, o resumo distingue coletas,
   resultados, endereços únicos e vínculos com pontos estratégicos.
   O campo usado para geocodificar o CSV traz logradouro, número e município.

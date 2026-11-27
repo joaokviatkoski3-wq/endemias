@@ -4,6 +4,12 @@ from app_core.version import APP_VERSION
 
 
 RELEASES = {
+    "2.33.1": {
+        "titulo": "Leitura das coordenadas de dengue",
+        "mudancas": [
+            "A sincronização aceita coordenadas copiadas com uma vírgula no fim do campo.",
+        ],
+    },
     "2.33.0": {
         "titulo": "Folgas excepcionais e relatórios de pessoal",
         "mudancas": [

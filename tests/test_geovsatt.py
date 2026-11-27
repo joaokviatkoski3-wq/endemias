@@ -757,7 +757,7 @@ class GeoVSATTTests(unittest.TestCase):
         cabe = ["DATA NOTIFICAÇÃO", "Nº NOTIFICAÇÃO", "NOME", "ENDEREÇO", "RESULTADO", "DATA BLOQUEIO",
                 "LATITUDE", "LONGITUDE"]
         abas = {"2025": [cabe, ["12/10/2025", "9001", "Nome sintético", "", "Negativo"]],
-                "2026": [cabe, ["01/06/2026", "112", "Sigiloso", "Rua fora do RG, 57", "Positivo", "01/06/2026", lat, lon],
+                "2026": [cabe, ["01/06/2026", "112", "Sigiloso", "Rua fora do RG, 57", "Positivo", "01/06/2026", f"{lat},", lon],
                           ["01/06/2026", "113", "Sigiloso", "Rua Ficticia, 10", "", "", lat, lon],
                           ["01/06/2026", "113", "Sigiloso", "Rua Ficticia, 12", "", "", lat, lon]]}
         for _ in range(2):
@@ -770,6 +770,7 @@ class GeoVSATTTests(unittest.TestCase):
         resp = cliente.get("/api/geovsatt/camadas/dengue")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual([f["id"] for f in resp.json["features"]], ["2026:112"])
+        self.assertEqual(resp.json["features"][0]["geometry"]["coordinates"], [lon, lat])
         self.assertEqual(resp.json["features"][0]["properties"]["fonte_coordenadas"], "Google Sheets")
         endemias = self.client(self.endemias)
         pacientes = endemias.get("/pacientes-dengue?ano=2026")
