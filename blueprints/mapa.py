@@ -63,13 +63,13 @@ def api_mapa():
         from blueprints.ambiental import dados_mapa
         return dados_mapa()
     try:
-        return jsonify(resumo_endemias(bh.db_target(), request.args, incluir_esporotricose=setores.atual()!="endemias"))
+        return jsonify(resumo_endemias(bh.get_db(), request.args, incluir_esporotricose=setores.atual()!="endemias"))
     except Exception:
         logging.exception("Erro em api_mapa")
         return jsonify({"erro": "Erro interno. Verifique endemias.log"}), 500
 
 
-def resumo_endemias(target, parametros, *, incluir_esporotricose=False):
+def resumo_endemias(conn, parametros, *, incluir_esporotricose=False):
     locs = parametros.getlist("localidade")
     tipos = parametros.getlist("tipo")
     d_ini, d_fim = parametros.get("d_ini", ""), parametros.get("d_fim", "")
@@ -89,7 +89,7 @@ def resumo_endemias(target, parametros, *, incluir_esporotricose=False):
         where_v += " AND v.data<=?"
         params_v.append(d_fim)
 
-    conn = integradas.connect(target)
+    conn = integradas.integrar(conn)
     try:
         rows_v = _serialize_rows(
             conn.execute(
@@ -312,7 +312,7 @@ def resumo_endemias(target, parametros, *, incluir_esporotricose=False):
         dados[chave][tipo.lower()] = dados[chave].get(tipo.lower(), 0) + total_tipo
         dados[chave]["normais"] += r["normais"] or 0
         dados[chave]["fechados"] += r["fechados"] or 0
-        dados[chave]["recusas"] += r["recusas"] or 0
+        dados[chave]["recusas"] += r.get("recusas") or 0
         dados[chave]["recuperados"] += r["recuperados"] or 0
         ultimo = r["ultimo_trabalho"]
         if ultimo and (not dados[chave]["ultimo_trabalho"] or ultimo > dados[chave]["ultimo_trabalho"]):

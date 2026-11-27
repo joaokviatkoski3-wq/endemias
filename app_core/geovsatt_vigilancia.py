@@ -313,7 +313,7 @@ def indicadores_endemias(target, parametros, malha):
     inicio, fim = _intervalo(parametros)
     args = MultiDict((k, v) for k, v in (("d_ini", inicio), ("d_fim", fim),
                                             ("tipo", parametros.get("tipo"))) if v)
-    dados = resumo_endemias(target, args)
+    dados = resumo_endemias(db.connect(target), args)
     modo = parametros.get("modo", "")
     for row in dados.values():
         score = (2*min(row["focos"], 4) + 2*min(row["focos_pendentes"], 3)
