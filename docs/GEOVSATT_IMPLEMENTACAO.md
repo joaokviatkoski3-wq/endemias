@@ -403,9 +403,14 @@ uso offline na 2.27.3.
   `ENDEMIAS_GEO_REDIRIGIR_MAPA_LEGADO=1` no serviço externo e confira os dois
   atalhos. As rotas de dados legadas seguem disponíveis durante a transição.
 
-Aplique a migração PostgreSQL `0049_geovsatt_vigilancia.sql` com o procedimento
-de atualização do projeto. A ativação das integrações depende das configurações
-acima.
+Em 27/11/2026, a implantação aplicou a migração PostgreSQL
+`0049_geovsatt_vigilancia.sql` e ativou `ENDEMIAS_GEO_CNEFE_CSV` com o ZIP em
+`C:/ProgramData/EndemiasWeb/geovsatt-cnefe/4100400_ALMIRANTE_TAMANDARE.zip`.
+O serviço confirmou a leitura do arquivo. O Google Sheets aguarda a conta
+de serviço e o ID da planilha. O redirecionamento dos mapas antigos segue
+desativado. Consulte
+`C:/ProgramData/EndemiasWeb/ativacao-geovsatt2280-resultado.json` para as
+verificações do instalador.
 
 ## Histórico de implantação e próximas validações
 

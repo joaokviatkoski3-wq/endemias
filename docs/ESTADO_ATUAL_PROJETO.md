@@ -5,13 +5,14 @@ regras de trabalho e isolamento de testes.
 
 ## Produção confirmada
 
-- **2.27.3**, release `7eaaf9d`, ativa desde 26/11/2026. O relatório de
-  ativação confirmou a preservação de 106 tabelas e o retorno dos logins.
-  O GeoVSATT respondeu em HTTPS com a nova versão, incluindo a entrada,
-  o manifesto e o service worker do aplicativo. O usuário confirmou a
-  conferência dos recursos, inclusive o offline. Em 27/11/2026, a busca
-  Nominatim foi ativada com o maps.co e retornou a Prefeitura de Almirante
-  Tamandaré no ensaio autenticado com banco isolado.
+- **2.28.0**, release `85918bd`, ativa desde 27/11/2026. A ativação aplicou
+  `0049_geovsatt_vigilancia.sql`, conferiu o backup e confirmou a preservação
+  das 106 tabelas anteriores e o retorno dos três logins na origem do
+  Tunnel. O mapa offline respondeu com o botão Minha localização e a
+  permissão de geolocalização. O cliente automatizado recebeu 403 com
+  código Cloudflare 1010 na checagem externa. O relatório fica em
+  `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2280-resultado.json`.
+  A busca Nominatim usa o maps.co, configurado em 27/11/2026.
 - O portal `vsatt.com.br` apresenta Endemias, Ambiental e GeoVSATT. O Tunnel
   encaminha para Waitress em
   `127.0.0.1:5001`. O acesso local usa as portas 5000 (Endemias) e
@@ -22,13 +23,14 @@ regras de trabalho e isolamento de testes.
   temporário servem a ensaios. Os backups operacionais ficam em
   `D:/BackupsEndemias`.
 
-## Versão em desenvolvimento
+## Homologação do GeoVSATT
 
-- **2.28.0** introduz Minha localização, camadas de execução de bloqueios,
-  impressão de dengue e ovitrampas, espelho das abas anuais do Google Sheets
-  e georreferenciamento de coletas de tubo. A configuração do Google Sheets,
-  a homologação em aparelho e a troca dos atalhos de mapas são etapas de
-  operação. [Operação no GeoVSATT](GEOVSATT_IMPLEMENTACAO.md#vigilância-e-bloqueios-na-2280)
+- O ZIP CNEFE do município 4100400 está configurado no serviço e carrega
+  26.238 chaves de logradouro e número. A sincronização de dengue depende
+  do ID da planilha e da credencial de uma conta de serviço leitora.
+  O teste de localização em modo avião será feito em aparelho. O
+  redirecionamento dos mapas antigos aguarda a conferência de Endemias e
+  Ambiental. [Operação no GeoVSATT](GEOVSATT_IMPLEMENTACAO.md#vigilância-e-bloqueios-na-2280)
 
 ## Continuidade por módulo
 
