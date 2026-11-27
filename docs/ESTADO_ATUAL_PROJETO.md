@@ -5,12 +5,13 @@ regras de trabalho e isolamento de testes.
 
 ## Produção confirmada
 
-- **2.29.0**, release `7dc73f3`, ativa desde 27/11/2026. A ativação confirmou
+- **2.29.1**, release `fbdf912`, ativa desde 27/11/2026. A ativação confirmou
   os backups, a preservação das 109 tabelas e os três logins na origem
   do Tunnel. A versão reutiliza a migração `0049_geovsatt_vigilancia.sql`
-  aplicada na 2.28.0. Os relatórios da atualização e da primeira leitura
-  ficam em `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2290-resultado.json`
-  e `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2290-sincronizacao.json`.
+  aplicada na 2.28.0. O relatório está em
+  `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2291-resultado.json`.
+  A primeira leitura do Sheets, feita na 2.29.0, consta em
+  `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2290-sincronizacao.json`.
   A busca Nominatim usa o maps.co, configurado em 27/11/2026.
 - O portal `vsatt.com.br` apresenta Endemias, Ambiental e GeoVSATT. O Tunnel
   encaminha para Waitress em
@@ -31,6 +32,8 @@ regras de trabalho e isolamento de testes.
 - **Gerenciar camadas** reúne abas de estilos, dengue e coletas de tubo
   exclusivas do superadmin. A camada de tubos considera 2026 em diante.
   Tubos vinculados a PEs seguem as coordenadas do ponto no cadastro.
+  Em **Coletas de tubo**, o CSV para Google Earth e o retorno por KML
+  foram validados de ponta a ponta com dois endereços públicos.
   O acompanhamento da localização foi validado com duas posições no Brave.
   O teste em modo avião ainda será feito em aparelho. O redirecionamento
   dos mapas antigos aguarda a conferência de Endemias e Ambiental.
