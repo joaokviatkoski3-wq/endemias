@@ -5,11 +5,11 @@ regras de trabalho e isolamento de testes.
 
 ## Produção confirmada
 
-- **2.33.1**, release `0622cf9`, ativa desde 27/11/2026. A ativação confirmou
+- **2.34.0**, release `89bc16d`, ativa desde 27/11/2026. A ativação confirmou
   os backups, a preservação das 115 tabelas existentes e os logins do
   Endemias e do Ambiental na origem do Tunnel. A atualização não exigiu
   migração. O relatório está em
-  `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2331-resultado.json`.
+  `C:/ProgramData/EndemiasWeb/ativacao-geovsatt2340-resultado.json`.
   A migração `0053_pessoal_folgas_adiantamentos.sql` foi aplicada na 2.33.0.
   A migração aditiva `0052_pessoal_folgas.sql` foi aplicada na 2.31.0.
   A migração `0051_geovsatt_posicoes_tubitos_liraa.sql` foi aplicada na 2.30.3.
@@ -64,6 +64,11 @@ regras de trabalho e isolamento de testes.
   pelas submissões do Kobo. Todas registram a ORPEC no número 4250. O alias
   `WADISLAU BUGALSKI - ORPEC` foi cadastrado para o PE-0028 em Lamenha.
   Restam no recorte 190 coletas em 115 endereços para localizar.
+  Na 2.34.0, 36 das 38 coletas sem número têm uma posição provisória na
+  malha. São 24 entre o centro interno da quadra e o logradouro da visita
+  e 12 no centro interno. Essas coletas continuam na lista de revisão e
+  ficam fora do mapa de calor até a confirmação. As outras duas têm
+  divergência entre a localidade da visita e a do quarteirão na malha.
 - A partir da 2.32.0, coletas têm filtros por espécie e tipo de trabalho na
   camada, no painel administrativo e nos CSVs desse painel. Em **Posições
   pendentes**, o superadmin pode marcar a primeira posição no mapa e abrir o
