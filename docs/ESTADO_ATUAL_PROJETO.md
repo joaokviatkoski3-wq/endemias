@@ -49,7 +49,10 @@ regras de trabalho e isolamento de testes.
   Restaram 190 coletas em 115 endereços, 39 vinculadas a nove PEs que precisam
   de coordenadas e 11 de PE sem vínculo. Em coletas já localizadas sem vínculo
   com PE, o superadmin pode corrigir a posição visualmente no mapa, incluindo
-  os tubos do LIRAa a partir da 2.30.3.
+  os tubos do LIRAa a partir da 2.30.3. Em conferência posterior, três PEs
+  receberam coordenadas publicadas pelo IAT e pelo CREA-PR, confirmadas nos
+  quarteirões cadastrados. Esses três PEs abrangem 15 das coletas pendentes
+  do recorte de 27/11.
 - A partir da 2.32.0, coletas têm filtros por espécie e tipo de trabalho na
   camada, no painel administrativo e nos CSVs desse painel. Em **Posições
   pendentes**, o superadmin pode marcar a primeira posição no mapa e abrir o
